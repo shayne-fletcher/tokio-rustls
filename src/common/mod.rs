@@ -2,6 +2,7 @@ mod handshake;
 
 pub(crate) use handshake::{IoSession, MidHandshake};
 use rustls::{ConnectionCommon, SideData};
+use std::cmp;
 use std::io::{self, IoSlice, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
@@ -248,7 +249,11 @@ where
             }
         }
 
-        match self.session.reader().read(buf.initialize_unfilled()) {
+        // Only initialize the buffer slice that is enough to hold the data for the current
+        // read.
+        let bytes_available = self.session.reader().bytes_available();
+        let bytes_available = cmp::min(bytes_available + 1, buf.remaining());
+        match self.session.reader().read(buf.initialize_unfilled_to(bytes_available)) {
             // If Rustls returns `Ok(0)` (while `buf` is non-empty), the peer closed the
             // connection with a `CloseNotify` message and no more data will be forthcoming.
             //
